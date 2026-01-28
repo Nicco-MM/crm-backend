@@ -63,6 +63,48 @@ app.get("/init-db", async (req, res) => {
   }
 });
 app.post("/webhook/evolution", async (req, res) => {
-  console.log("EVENT FROM EVOLUTION:", req.body);
-  res.json({ status: "received" });
+  try {
+    const payload = req.body;
+
+    const phone = payload?.data?.from;
+    const text = payload?.data?.body;
+
+    if (!phone || !text) {
+      return res.json({ status: "ignored" });
+    }
+
+    const contactResult = await pool.query(
+      `INSERT INTO contacts (phone)
+       VALUES ($1)
+       ON CONFLICT (phone) DO UPDATE SET phone = EXCLUDED.phone
+       RETURNING id`,
+      [phone]
+    );
+
+    const contactId = contactResult.rows[0].id;
+
+    const convoResult = await pool.query(
+      `INSERT INTO conversations (contact_id)
+       VALUES ($1)
+       RETURNING id`,
+      [contactId]
+    );
+
+    const conversationId = convoResult.rows[0].id;
+
+    await pool.query(
+      `INSERT INTO messages (conversation_id, direction, body)
+       VALUES ($1, 'inbound', $2)`,
+      [conversationId, text]
+    );
+
+    console.log("Saved message from", phone);
+
+    res.json({ status: "stored" });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "webhook failed" });
+  }
 });
+
