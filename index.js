@@ -27,3 +27,39 @@ app.get("/db-test", async (req, res) => {
   }
 });
 
+// STEP 2 - Init tables
+app.get("/init-db", async (req, res) => {
+  try {
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS contacts (
+        id SERIAL PRIMARY KEY,
+        phone TEXT UNIQUE,
+        name TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS conversations (
+        id SERIAL PRIMARY KEY,
+        contact_id INTEGER REFERENCES contacts(id),
+        status TEXT DEFAULT 'open',
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS messages (
+        id SERIAL PRIMARY KEY,
+        conversation_id INTEGER REFERENCES conversations(id),
+        direction TEXT,
+        body TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    res.json({ status: "tables_created" });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "init failed" });
+  }
+});
+
